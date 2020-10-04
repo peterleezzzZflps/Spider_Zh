@@ -44,11 +44,10 @@ class Spider_Cnvd(object):
             all_url_list.extend(page_url_list)
         if int(self.url_count[0]) > 0:
             print("查询共{size}条记录, 爬虫准备中...".format(size=self.url_count[0]))
+            spider_db.conntect_spider_db(str(self.keyword + "data_db"))
         else:
             print("未查到关键字'%s'相关记录" % self.keyword)
-            exit()
 
-        spider_db.conntect_spider_db(str(self.keyword + "data_db"))
         time.sleep(2)
 
         # print(all_url_list)  # 获得关键词相关的所有页面的url
@@ -136,12 +135,16 @@ class Spider_Cnvd(object):
         conn.close()
 
     def get_url_count(self):
-
+        self.cookies = self.get_cookies()
         response = requests.post(url=self.url+'/flaw/list.htm?flag=true', data=self.data,
-                                 headers=random.choice(self.header_list)).text
+                                 headers=random.choice(self.header_list), cookies=self.cookies)
+
         # re正则获取关键字相关的url总数
         patten = '.*?共&nbsp;(.*?)&nbsp;条.*?'
-        url_count = re.findall(patten, response, re.S)
+        url_count = re.findall(patten, response.text, re.S)
+        if response.status_code > 400:
+            time.sleep(30)
+            url_count = self.get_url_count()
         return url_count
 
 
@@ -153,35 +156,37 @@ if __name__ == "__main__":
             'X-Cache': 'hit',
         }
         header_list.append(header)
-    keyword = input("请输入想要爬取的关键字>>").strip()
+    keyword_string = input("请输入关键词, 如果想爬取多个关键词请用','隔开, 例如: linux, windows>>").strip()
+    keyword_list = keyword_string.split(",")
+    for keyword in keyword_list:
+        # 去除字符串中的空格, 防止数据库创建时候的报错
+        keyword = keyword.replace(" ", "")
+        data = {
+            'keyword': keyword,
+            'condition': 1,
+            'keywordFlag': 0,
+            'cnvdId': '',
+            'cnvdIdFlag': 0,
+            'baseinfoBeanbeginTime': '',
+            'baseinfoBeanendTime': '',
+            'baseinfoBeanFlag': 0,
+            'refenceInfo': '',
+            'referenceScope': -1,
+            'manufacturerId': -1,
+            'categoryId': -1,
+            'editionId': -1,
+            'causeIdStr': '',
+            'threadIdStr': '',
+            'serverityIdStr': '',
+            'positionIdStr': '',
+            'max': 100,
+            'offset': 0,
+            'flag': '[Ljava.lang.String;@132865ee',
 
-    data = {
-        'keyword': keyword,
-        'condition': 1,
-        'keywordFlag': 0,
-        'cnvdId': '',
-        'cnvdIdFlag': 0,
-        'baseinfoBeanbeginTime': '',
-        'baseinfoBeanendTime': '',
-        'baseinfoBeanFlag': 0,
-        'refenceInfo': '',
-        'referenceScope': -1,
-        'manufacturerId': -1,
-        'categoryId': -1,
-        'editionId': -1,
-        'causeIdStr': '',
-        'threadIdStr': '',
-        'serverityIdStr': '',
-        'positionIdStr': '',
-        'max': 100,
-        'offset': 0,
-        'flag': '[Ljava.lang.String;@132865ee',
+        }
 
-    }
-    # for i in range(2):
-    #
-    #     data['offset'] += 100
-
-    """了解到cnvd最快速禁止的是cookie的访问, 一个cookie大概快速访问允许的次数在6-9次, 所以将每5次将从新获取一下cookie"""
-    Spider_Cnvd(data=data, header_list=header_list, url='https://www.cnvd.org.cn', keyword=keyword)
+        # if len(keyword_list) > 1:
+        #     time.sleep(random.randrange(3, 5))
+        """了解到cnvd最快速禁止的是cookie的访问, 一个cookie大概快速访问允许的次数在6-9次, 所以将每5次将从新获取一下cookie"""
+        Spider_Cnvd(data=data, header_list=header_list, url='https://www.cnvd.org.cn', keyword=keyword)
 
