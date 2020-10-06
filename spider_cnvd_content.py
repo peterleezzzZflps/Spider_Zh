@@ -29,21 +29,33 @@ class Spider_Cnvd(object):
         all_url_list = []
         print("正在获取关键字'%s'相关的记录地址, 请耐心等待..." % self.keyword)
         url_count = (int(self.url_count[0]) // 100) + 2
+
         for value in range(url_count):
             # 如果数据量过大, 获取所有的url最好也要加上 sleep
             if value > 5:
                 time.sleep(random.randrange(2, 5))
             # 通过post方式获取ajax动态加载的数据
-            response = requests.post(url=self.url+'/flaw/list.htm', headers=random.choice(self.header_list), data=self.data).text
+            # post_count += 1
+            # if post_count >= 5:
+            #     self.cookies = self.get_cookies()
+            response = requests.post(url=self.url+'/flaw/list.htm', headers=random.choice(self.header_list), data=self.data, cookies=self.cookies)
+            while True:
+                if response.status_code > 400:
+                    time.sleep(random.randrange(8, 15))
+                    response = requests.post(url=self.url + '/flaw/list.htm', headers=random.choice(self.header_list),
+                                             data=self.data, cookies=self.cookies)
+                else:
+                    break
 
             self.data['offset'] += 100
-            tree = etree.HTML(response, )
+            tree = etree.HTML(response.text, )
             # 获取sqlite的所有数据页面的url地址
             page_url_list = tree.xpath("/html/body/div[4]/div[1]/div/div[1]/table//tbody//a/@href")
 
             all_url_list.extend(page_url_list)
         if int(self.url_count[0]) > 0:
-            print("查询共{size}条记录, 爬虫准备中...".format(size=self.url_count[0]))
+            # print("查询共{size}条记录, 爬虫准备中...".format(size=self.url_count[0]))
+            print("查询关键字'{keyword}'共{size}条记录, 爬虫准备中...".format(size=len(all_url_list), keyword=self.keyword))
             spider_db.conntect_spider_db(str(self.keyword + "data_db"))
         else:
             print("未查到关键字'%s'相关记录" % self.keyword)
@@ -143,7 +155,7 @@ class Spider_Cnvd(object):
         patten = '.*?共&nbsp;(.*?)&nbsp;条.*?'
         url_count = re.findall(patten, response.text, re.S)
         if response.status_code > 400:
-            time.sleep(30)
+            time.sleep(15)
             url_count = self.get_url_count()
         return url_count
 
@@ -157,6 +169,9 @@ if __name__ == "__main__":
         }
         header_list.append(header)
     keyword_string = input("请输入关键词, 如果想爬取多个关键词请用','隔开, 例如: linux, windows>>").strip()
+    # from Spider import tk_test
+    # keyword_string = tk_test.test_tks()
+
     keyword_list = keyword_string.split(",")
     for keyword in keyword_list:
         # 去除字符串中的空格, 防止数据库创建时候的报错
